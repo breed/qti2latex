@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import random
 import re
 import shutil
 import tempfile
@@ -153,6 +154,7 @@ def write_exam_header(f, title, description):
 \usepackage{enumitem}
 \usepackage{longtable}
 \usepackage{booktabs}
+\usapackage{adjustbox}
 \usepackage[margin=1in]{geometry}
 
 \providecommand{\tightlist}{%%
@@ -165,6 +167,7 @@ def write_exam_header(f, title, description):
   {\Large %s}\\[4pt]
 \end{center}
 \vspace{0.5cm}
+
 %s
 
 \begin{questions}
@@ -172,11 +175,25 @@ def write_exam_header(f, title, description):
     f.write("\n")
 
 def write_exam_footer(f):
-    f.write(r"\end{questions}" "\n" r"\end{document}" "\n")
+    f.write(r"\end{questions}" "\n" r"\numpoints\ total points  \numbonuspoints\ bonus points" "\n" r"\end{document}" "\n")
 
-def render_question_latex(qtype, stem_html, item):
+def render_question_latex(qtype, stem_html, item, points):
     stem = html_to_latex(stem_html)
-    lines = [f"\\question {stem}\n"]
+    bonus_points = None
+    if points == 0:
+        m = re.search(r"bonus \((\d+) points?\)", stem, re.I)
+        if not m:
+            m = re.search(r"\((\d+) bonus points?\)", stem, re.I)
+        if m:
+            bonus_points = int(m.group(1))
+    if bonus_points:
+        lines = [f"\\bonusquestion[{bonus_points}] {stem}\n"]
+    elif qtype == "text_only_question":
+        lines = ["\\begin{EnvFullwidth}\n\\fbox{\\fbox{\\begin{minipage}{\\dimexpr\\textwidth-2\\fboxsep-2\\fboxrule}\n" +
+                 stem +
+                 "\\end{minipage}\n}}\n\\end{EnvFullwidth}\n"]
+    else:
+        lines = [f"\\question[{points}] {stem}\n"]
 
     if qtype in ("multiple_choice_question", "true_false_question"):
         lines.append("\\begin{choices}\n")
@@ -216,6 +233,28 @@ def render_question_latex(qtype, stem_html, item):
 
 def extract_tag(element):
     return element.tag.split('}')[-1]
+
+
+def get_group(question):
+    items = []
+    selection_count = None
+    points = None
+    for n in question:
+        if extract_tag(n) == "item":
+            items.append(n)
+        elif extract_tag(n) == "selection_ordering":
+            selection_count = int(findall_anyns(n, "selection_number")[0].text)
+            points = int(findall_anyns(n, "points_per_item")[0].text)
+    return selection_count, points, items
+
+
+def get_qti_metadata_field(question, param):
+    for qtm in findall_anyns(question, "qtimetadatafield"):
+        label = text_of(first(findall_anyns(qtm, "fieldlabel")))
+        val = text_of(first(findall_anyns(qtm, "fieldentry")))
+        if label == param:
+            return val
+
 
 def main():
     ap = argparse.ArgumentParser(description="Convert QTI (Canvas) to LaTeX exam")
@@ -285,15 +324,14 @@ def main():
                 continue
             for question in questions:
                 if extract_tag(question) == "item":
-                    meta = get_qti_metadata(question)
-                    qtype = guess_type(meta, question)
-                    stem = get_item_stem(question)
-                    # rewrite any <img src="..."> to media/filename
-                    stem = re.sub(r'src=["\']([^"\']+)["\']', lambda m: f'src="media/{Path(m.group(1)).name}"', stem)
+                    write_question(f, question)
                     qcount += 1
-                    f.write(render_question_latex(qtype, stem, question))
                 elif extract_tag(question) == "section":
-                    print("found a section")
+                    selection_count, points, items = get_group(question)
+                    random.shuffle(items)
+                    for _ in range(selection_count):
+                        write_question(f, items.pop(), points)
+                        qcount += 1
                 else:
                     print(f"what is {question}")
         write_exam_footer(f)
@@ -304,6 +342,18 @@ def main():
     print(f"Wrote {args.output}.")
     print("Note: image files copied (best-effort) to ./media/. Compile with:")
     print("  pdflatex -interaction=nonstopmode exam.tex")
+
+
+def write_question(f, question, points = None):
+    meta = get_qti_metadata(question)
+    if points is None:
+        points = int(meta.get("points_possible"))
+    qtype = guess_type(meta, question)
+    stem = get_item_stem(question)
+    # rewrite any <img src="..."> to media/filename
+    stem = re.sub(r'src=["\']([^"\']+)["\']', lambda m: f'src="media/{Path(m.group(1)).name}"', stem)
+    f.write(render_question_latex(qtype, stem, question, points))
+
 
 if __name__ == "__main__":
     main()
