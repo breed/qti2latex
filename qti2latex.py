@@ -196,18 +196,22 @@ def render_question_latex(qtype, stem_html, item, points):
         lines = [f"\\question[{points}] {stem}\n"]
 
     if qtype in ("multiple_choice_question", "true_false_question"):
-        lines.append("\\begin{choices}\n")
-        choices = get_choices(item)
-        correct = get_correct_idents(item)
-        for ident, txt in choices:
-            body = html_to_latex(txt)
-            if ident in correct:
-                lines.append(f"\\CorrectChoice {body}\n")
+        lines.append("{\n")
+        lines.append("\\begin{checkbox}\n")
+        choices1 = get_choices(item)
+        correct1 = get_correct_idents(item)
+        for ident1, txt1 in choices1:
+            body1 = html_to_latex(txt1)
+            if ident1 in correct1:
+                lines.append(f"\\CorrectChoice {body1}\n")
             else:
-                lines.append(f"\\choice {body}\n")
-        lines.append("\\end{choices}\n")
+                lines.append(f"\\choice {body1}\n")
+        lines.append("\\end{checkbox}\n")
+        lines.append("{\n")
 
     elif qtype == "multiple_answers_question":
+        lines.append("{\n")
+        lines.append("\\checkboxchar{$\\square$}\n")
         lines.append("\\begin{checkboxes}\n")
         choices = get_choices(item)
         correct = get_correct_idents(item)
@@ -218,6 +222,7 @@ def render_question_latex(qtype, stem_html, item, points):
             else:
                 lines.append(f"\\choice {body}\n")
         lines.append("\\end{checkboxes}\n")
+        lines.append("}\n")
 
     elif qtype in ("short_answer_question", "numerical_question", "short_answer"):
         lines.append("\\fillin[\\hspace{1.5in}]\n")
@@ -230,6 +235,7 @@ def render_question_latex(qtype, stem_html, item, points):
 
     lines.append("\n")
     return "".join(lines)
+
 
 def extract_tag(element):
     return element.tag.split('}')[-1]
