@@ -99,6 +99,16 @@ def get_item_stem(item):
     mats = findall_anyns(item, "mattext")
     return text_of(first(mats))
 
+def get_max_choice_len(choices):
+    # choices is list of (ident, text)
+    maxlen = 0
+    for _, txt in choices:
+        just_txt = re.sub(r'<[^>]+>', '', txt)
+        l = len(just_txt)
+        if l > maxlen:
+            maxlen = l
+    return maxlen
+
 def get_choices(item):
     # Return list of (ident, html_text)
     choices = []
@@ -154,7 +164,7 @@ def write_exam_header(f, title, description):
 \usepackage{enumitem}
 \usepackage{longtable}
 \usepackage{booktabs}
-\usapackage{adjustbox}
+\usepackage{adjustbox}
 \usepackage[margin=1in]{geometry}
 
 \providecommand{\tightlist}{%%
@@ -186,6 +196,8 @@ def render_question_latex(qtype, stem_html, item, points):
             m = re.search(r"\((\d+) bonus points?\)", stem, re.I)
         if m:
             bonus_points = int(m.group(1))
+            stem = stem[:m.start()] + stem[m.end():]
+
     if bonus_points:
         lines = [f"\\bonusquestion[{bonus_points}] {stem}\n"]
     elif qtype == "text_only_question":
@@ -197,31 +209,43 @@ def render_question_latex(qtype, stem_html, item, points):
 
     if qtype in ("multiple_choice_question", "true_false_question"):
         lines.append("{\n")
-        lines.append("\\begin{checkbox}\n")
         choices1 = get_choices(item)
+        maxlen = get_max_choice_len(choices1)
         correct1 = get_correct_idents(item)
+        if maxlen <= 20:
+            onepar = "onepar"
+        else:
+            onepar = ""
+        lines.append(f"\\begin{{{onepar}checkboxes}}\n")
         for ident1, txt1 in choices1:
             body1 = html_to_latex(txt1)
             if ident1 in correct1:
                 lines.append(f"\\CorrectChoice {body1}\n")
             else:
                 lines.append(f"\\choice {body1}\n")
-        lines.append("\\end{checkbox}\n")
-        lines.append("{\n")
+        lines.append(f"\\end{{{onepar}checkboxes}}\n")
+        lines.append("}\n")
 
     elif qtype == "multiple_answers_question":
         lines.append("{\n")
         lines.append("\\checkboxchar{$\\square$}\n")
-        lines.append("\\begin{checkboxes}\n")
         choices = get_choices(item)
+        maxlen = get_max_choice_len(choices)
         correct = get_correct_idents(item)
+        correct1 = get_correct_idents(item)
+        if maxlen <= 20:
+            onepar = "onepar"
+        else:
+            onepar = ""
+        lines.append(f"\\begin{{{onepar}checkboxes}}\n")
+
         for ident, txt in choices:
-            body = html_to_latex(txt)
-            if ident in correct:
-                lines.append(f"\\CorrectChoice {body}\n")
-            else:
-                lines.append(f"\\choice {body}\n")
-        lines.append("\\end{checkboxes}\n")
+                body = html_to_latex(txt)
+                if ident in correct:
+                    lines.append(f"\\CorrectChoice {body}\n")
+                else:
+                    lines.append(f"\\choice {body}\n")
+        lines.append(f"\\end{{{onepar}checkboxes}}\n")
         lines.append("}\n")
 
     elif qtype in ("short_answer_question", "numerical_question", "short_answer"):

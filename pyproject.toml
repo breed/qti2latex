@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qti2latex"
+version = "0.1.0"
+description = "Convert QTI (Canvas) to LaTeX exam"
+authors = [{ name = "breed" }]
+dependencies = [
+    "pypandoc"
+]
+requires-python = ">=3.6"
+
+[project.scripts]
+qti2latex = "qti2latex:main"
