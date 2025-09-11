@@ -209,6 +209,7 @@ def render_question_latex(qtype, stem_html, item, points):
 
     if qtype in ("multiple_choice_question", "true_false_question"):
         lines.append("{\n")
+        lines.append("\\begin{samepage}\n")
         choices1 = get_choices(item)
         maxlen = get_max_choice_len(choices1)
         correct1 = get_correct_idents(item)
@@ -224,10 +225,12 @@ def render_question_latex(qtype, stem_html, item, points):
             else:
                 lines.append(f"\\choice {body1}\n")
         lines.append(f"\\end{{{onepar}checkboxes}}\n")
+        lines.append("\\end{samepage}\n")
         lines.append("}\n")
 
     elif qtype == "multiple_answers_question":
         lines.append("{\n")
+        lines.append("\\begin{samepage}\n")
         lines.append("\\checkboxchar{$\\square$}\n")
         choices = get_choices(item)
         maxlen = get_max_choice_len(choices)
@@ -246,13 +249,15 @@ def render_question_latex(qtype, stem_html, item, points):
                 else:
                     lines.append(f"\\choice {body}\n")
         lines.append(f"\\end{{{onepar}checkboxes}}\n")
+        lines.append("\\end{samepage}\n")
         lines.append("}\n")
 
     elif qtype in ("short_answer_question", "numerical_question", "short_answer"):
+        lines.append("\\vspace{\\baselineskip}\n")
         lines.append("\\fillin[\\hspace{1.5in}]\n")
 
     elif qtype in ("essay_question", "text_only_question"):
-        lines.append("\\vspace{2.5\\baselineskip}\n")
+        lines.append("\\vspace{6\\baselineskip}\n")
 
     else:
         lines.append("\\\\[4pt]\\emph{[Unsupported/unknown question type—review manually.]}\n")
@@ -289,17 +294,17 @@ def get_qti_metadata_field(question, param):
 def main():
     ap = argparse.ArgumentParser(description="Convert QTI (Canvas) to LaTeX exam")
     ap.add_argument("input", help="Path to QTI .zip or extracted QTI folder")
-    ap.add_argument("-o", "--output", default="exam.tex", help="Output LaTeX file")
-    ap.add_argument("--title", default="Exam", help="Exam title")
-    ap.add_argument("--author", default="", help="Instructor / Course / Date line")
+    ap.add_argument("-o", "--output", help="Output LaTeX file")
     args = ap.parse_args()
-    title = args.title
     tmp_dir = None
     if args.input.lower().endswith(".zip"):
         tmp_dir = extract_zip_to_tmp(Path(args.input))
         in_dir = tmp_dir
     else:
         in_dir = Path(args.input)
+
+    if not args.output:
+        args.output = Path(args.input).stem + ".tex"
 
     # collect XML item containers
     xml_files = read_qti_dir(in_dir)
