@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-import argparse
 import random
 import re
 import shutil
@@ -8,8 +6,11 @@ import zipfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+import click
 import pypandoc
 
+
+essay_vspace_lines = 6
 
 # --- Minimal HTML -> LaTeX converter (safe, simple) ---
 def html_to_latex(s: str) -> str:
@@ -157,16 +158,17 @@ def guess_type(meta, item):
     # fallback
     return "unknown"
 
-def write_exam_header(f, title, description):
+def write_exam_header(f, title, description, mainfont):
     f.write(r"""\documentclass[10pt,addpoints]{exam}
 \usepackage{graphicx}
 \usepackage{amsmath,amssymb}
 \usepackage{enumitem}
+\usepackage{fontspec}
 \usepackage{longtable}
 \usepackage{booktabs}
 \usepackage{adjustbox}
 \usepackage[margin=1in]{geometry}
-
+\setmainfont{%s}
 \providecommand{\tightlist}{%%
     \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
 \date{}
@@ -181,7 +183,7 @@ def write_exam_header(f, title, description):
 %s
 
 \begin{questions}
-""" % (escape_tex(title), description))
+""" % (mainfont, escape_tex(title), description))
     f.write("\n")
 
 def write_exam_footer(f):
@@ -256,8 +258,11 @@ def render_question_latex(qtype, stem_html, item, points):
         lines.append("\\vspace{\\baselineskip}\n")
         lines.append("\\fillin[\\hspace{1.5in}]\n")
 
-    elif qtype in ("essay_question", "text_only_question"):
-        lines.append("\\vspace{6\\baselineskip}\n")
+    elif qtype in ("essay_question"):
+        lines.append("\\vspace{" + str(essay_vspace_lines) + "\\baselineskip}\n")
+
+    elif qtype in ("text_only_question"):
+        lines.append("\\vspace{\\baselineskip}\n")
 
     else:
         lines.append("\\\\[4pt]\\emph{[Unsupported/unknown question type—review manually.]}\n")
@@ -291,20 +296,24 @@ def get_qti_metadata_field(question, param):
             return val
 
 
-def main():
-    ap = argparse.ArgumentParser(description="Convert QTI (Canvas) to LaTeX exam")
-    ap.add_argument("input", help="Path to QTI .zip or extracted QTI folder")
-    ap.add_argument("-o", "--output", help="Output LaTeX file")
-    args = ap.parse_args()
+@click.command()
+@click.argument("input", type=click.Path(readable=True))
+@click.option("-o", "--output", type=click.Path(dir_okay=False, writable=True), help="Output LaTeX file")
+@click.option("--essay-vspace", type=int, default=7, help="Number of lines for essay questions", show_default=True)
+@click.option("--mainfont", default="TeX Gyre Pagella", help="Main font for XeLaTeX/LuaLaTeX", show_default=True)
+def main(input, output, essay_vspace, mainfont):
+    """Convert QTI (Canvas) to LaTeX exam."""
+    global essay_vspace_lines
+    essay_vspace_lines = essay_vspace
     tmp_dir = None
-    if args.input.lower().endswith(".zip"):
-        tmp_dir = extract_zip_to_tmp(Path(args.input))
+    if input.lower().endswith(".zip"):
+        tmp_dir = extract_zip_to_tmp(Path(input))
         in_dir = tmp_dir
     else:
-        in_dir = Path(args.input)
+        in_dir = Path(input)
 
-    if not args.output:
-        args.output = Path(args.input).stem + ".tex"
+    if not output:
+        output = Path(input).stem + ".tex"
 
     # collect XML item containers
     xml_files = read_qti_dir(in_dir)
@@ -341,8 +350,8 @@ def main():
 
 
     # parse and write latex
-    with open(args.output, "w", encoding="utf-8") as f:
-        write_exam_header(f, title, description)
+    with open(output, "w", encoding="utf-8") as f:
+        write_exam_header(f, title, description, mainfont)
 
         qcount = 0
         for xf in sorted(xml_files):
@@ -374,9 +383,9 @@ def main():
     if tmp_dir:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
-    print(f"Wrote {args.output}.")
+    print(f"Wrote {output}.")
     print("Note: image files copied (best-effort) to ./media/. Compile with:")
-    print("  pdflatex -interaction=nonstopmode exam.tex")
+    print(f"  pdflatex -interaction=nonstopmode {output}")
 
 
 def write_question(f, question, points = None):
