@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qti2latex"
-version = "0.1.1"
+version = "0.1.2"
 description = "Convert QTI (Canvas) to LaTeX exam. Designed to work with text2qti, but should also work with quiz files exported from Canvas."
 authors = [{ name = "breed" }]
 dependencies = ["pypandoc", "click"]
