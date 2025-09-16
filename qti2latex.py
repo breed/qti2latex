@@ -11,6 +11,7 @@ import pypandoc
 
 
 essay_vspace_lines = 6
+make_answer_key = False
 
 # --- Minimal HTML -> LaTeX converter (safe, simple) ---
 def html_to_latex(s: str) -> str:
@@ -130,10 +131,21 @@ def get_correct_idents(item):
             condvar = first(findall_anyns(rc, "conditionvar"))
             if condvar is None:
                 continue
-            for ve in findall_anyns(condvar, "varequal"):
-                ident = (ve.text or "").strip()
-                if ident:
-                    correct.add(ident)
+            for condchild in condvar:
+                if extract_tag(condchild) == "and":
+                    for ve in childall_anyns(condchild, "varequal"):
+                        ident = (ve.text or "").strip()
+                        if ident:
+                            correct.add(ident)
+                elif extract_tag(condchild) == "or":
+                    for ve in childall_anyns(condchild, "varequal"):
+                        ident = (ve.text or "").strip()
+                        if ident:
+                            correct.add(ident)
+                elif extract_tag(condchild) == "varequal":
+                    ident = (condchild.text or "").strip()
+                    if ident:
+                        correct.add(ident)
     return correct
 
 def guess_type(meta, item):
@@ -159,7 +171,7 @@ def guess_type(meta, item):
     return "unknown"
 
 def write_exam_header(f, title, description, mainfont):
-    f.write(r"""\documentclass[10pt,addpoints]{exam}
+    f.write(r"""\documentclass[10pt,addpoints%s]{exam}
 \usepackage{graphicx}
 \usepackage{amsmath,amssymb}
 \usepackage{enumitem}
@@ -183,7 +195,7 @@ def write_exam_header(f, title, description, mainfont):
 %s
 
 \begin{questions}
-""" % (mainfont, escape_tex(title), description))
+""" % (",answers" if make_answer_key else "", mainfont, escape_tex(title), description))
     f.write("\n")
 
 def write_exam_footer(f):
@@ -237,7 +249,6 @@ def render_question_latex(qtype, stem_html, item, points):
         choices = get_choices(item)
         maxlen = get_max_choice_len(choices)
         correct = get_correct_idents(item)
-        correct1 = get_correct_idents(item)
         if maxlen <= 20:
             onepar = "onepar"
         else:
@@ -255,6 +266,11 @@ def render_question_latex(qtype, stem_html, item, points):
         lines.append("}\n")
 
     elif qtype in ("short_answer_question", "numerical_question", "short_answer"):
+        correct = get_correct_idents(item)
+        if correct:
+            lines.append("\\begin{solution}\n")
+            lines.append(" / ".join(html_to_latex(c) for c in correct))
+            lines.append("\n\\end{solution}\n")
         lines.append("\\vspace{\\baselineskip}\n")
         lines.append("\\fillin[\\hspace{1.5in}]\n")
 
@@ -301,9 +317,11 @@ def get_qti_metadata_field(question, param):
 @click.option("-o", "--output", type=click.Path(dir_okay=False, writable=True), help="Output LaTeX file")
 @click.option("--essay-vspace", type=int, default=7, help="Number of lines for essay questions", show_default=True)
 @click.option("--mainfont", default="TeX Gyre Pagella", help="Main font for XeLaTeX/LuaLaTeX", show_default=True)
-def main(input, output, essay_vspace, mainfont):
+@click.option("--answer-key", is_flag=True, help="Generate an answer key")
+def main(input, output, essay_vspace, mainfont, answer_key):
     """Convert QTI (Canvas) to LaTeX exam."""
     global essay_vspace_lines
+    global make_answer_key
     essay_vspace_lines = essay_vspace
     tmp_dir = None
     if input.lower().endswith(".zip"):
@@ -314,6 +332,12 @@ def main(input, output, essay_vspace, mainfont):
 
     if not output:
         output = Path(input).stem + ".tex"
+
+    if answer_key:
+        output_path = Path(output)
+        if not output_path.stem.endswith("answerkey"):
+            output = output_path.stem + "-answerkey" + output_path.suffix
+        make_answer_key = True
 
     # collect XML item containers
     xml_files = read_qti_dir(in_dir)
@@ -372,7 +396,10 @@ def main(input, output, essay_vspace, mainfont):
                     qcount += 1
                 elif extract_tag(question) == "section":
                     selection_count, points, items = get_group(question)
-                    random.shuffle(items)
+                    if make_answer_key:
+                        selection_count = len(items)
+                    else:
+                        random.shuffle(items)
                     for _ in range(selection_count):
                         write_question(f, items.pop(), points)
                         qcount += 1
