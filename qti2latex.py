@@ -221,12 +221,13 @@ def render_question_latex(qtype, stem_html, item, points):
     else:
         lines = [f"\\question[{points}] {stem}\n"]
 
+    correct = get_correct_idents(item)
+
     if qtype in ("multiple_choice_question", "true_false_question"):
         lines.append("{\n")
         lines.append("\\begin{samepage}\n")
         choices1 = get_choices(item)
         maxlen = get_max_choice_len(choices1)
-        correct1 = get_correct_idents(item)
         if maxlen <= 20:
             onepar = "onepar"
         else:
@@ -234,7 +235,7 @@ def render_question_latex(qtype, stem_html, item, points):
         lines.append(f"\\begin{{{onepar}checkboxes}}\n")
         for ident1, txt1 in choices1:
             body1 = html_to_latex(txt1)
-            if ident1 in correct1:
+            if ident1 in correct:
                 lines.append(f"\\CorrectChoice {body1}\n")
             else:
                 lines.append(f"\\choice {body1}\n")
@@ -248,7 +249,6 @@ def render_question_latex(qtype, stem_html, item, points):
         lines.append("\\checkboxchar{$\\square$}\n")
         choices = get_choices(item)
         maxlen = get_max_choice_len(choices)
-        correct = get_correct_idents(item)
         if maxlen <= 20:
             onepar = "onepar"
         else:
@@ -266,16 +266,30 @@ def render_question_latex(qtype, stem_html, item, points):
         lines.append("}\n")
 
     elif qtype in ("short_answer_question", "numerical_question", "short_answer"):
-        correct = get_correct_idents(item)
         if correct:
             lines.append("\\begin{solution}\n")
             lines.append(" / ".join(html_to_latex(c) for c in correct))
             lines.append("\n\\end{solution}\n")
-        lines.append("\\vspace{\\baselineskip}\n")
-        lines.append("\\fillin[\\hspace{1.5in}]\n")
+        if not make_answer_key:
+            lines.append("\\vspace{\\baselineskip}\n")
+            lines.append("\\fillin[\\hspace{1.5in}]\n")
 
     elif qtype in ("essay_question"):
-        lines.append("\\vspace{" + str(essay_vspace_lines) + "\\baselineskip}\n")
+        if correct:
+            lines.append("\\begin{solution}\n")
+            lines.append(" / ".join(html_to_latex(c) for c in correct))
+            lines.append("\n\\end{solution}\n")
+        else:
+            feedback = findall_anyns(item, "itemfeedback")
+            if feedback:
+                lines.append("\\begin{solution}\n")
+                for fb in feedback:
+                    fbtext = text_of(first(findall_anyns(fb, "mattext")))
+                    if fbtext:
+                        lines.append(html_to_latex(fbtext) + "\n")
+                lines.append("\\end{solution}\n")
+        if not make_answer_key:
+            lines.append("\\vspace{" + str(essay_vspace_lines) + "\\baselineskip}\n")
 
     elif qtype in ("text_only_question"):
         lines.append("\\vspace{\\baselineskip}\n")
@@ -377,7 +391,6 @@ def main(input, output, essay_vspace, mainfont, answer_key):
     with open(output, "w", encoding="utf-8") as f:
         write_exam_header(f, title, description, mainfont)
 
-        qcount = 0
         for xf in sorted(xml_files):
             try:
                 tree = ET.parse(xf)
@@ -393,16 +406,18 @@ def main(input, output, essay_vspace, mainfont, answer_key):
             for question in questions:
                 if extract_tag(question) == "item":
                     write_question(f, question)
-                    qcount += 1
                 elif extract_tag(question) == "section":
                     selection_count, points, items = get_group(question)
                     if make_answer_key:
-                        selection_count = len(items)
+                        count = len(items)
                     else:
                         random.shuffle(items)
-                    for _ in range(selection_count):
+                        count = selection_count
+                    for i in range(count):
+                        if i >= selection_count:
+                            f.write("\\addtocounter{question}{-1}\n")
                         write_question(f, items.pop(), points)
-                        qcount += 1
+
                 else:
                     print(f"what is {question}")
         write_exam_footer(f)
@@ -412,7 +427,7 @@ def main(input, output, essay_vspace, mainfont, answer_key):
 
     print(f"Wrote {output}.")
     print("Note: image files copied (best-effort) to ./media/. Compile with:")
-    print(f"  pdflatex -interaction=nonstopmode {output}")
+    print(f"  xelatex -interaction=nonstopmode {output}")
 
 
 def write_question(f, question, points = None):
