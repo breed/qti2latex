@@ -5,6 +5,11 @@ it is designed to work with text2qti (https://github.com/gpoore/text2qti), which
 it should work with export QTI files from canvas for supported question types.
 it uses the exam document class (https://ctan.org/pkg/exam).
 
+both qti2latex and exporting exams from canvas will produce a QTI zip file that can be used with qti2latex.
+
+if there are question groups (a set of questions that can be chosen from), qti2latex will pick them at random.
+the --choose-item option can be used the select a specific question instead of choosing at random.
+
 ## Supported Question Types
 - Multiple Choice (single answer)
 - Multiple Choice (multiple answers)
@@ -15,7 +20,7 @@ it uses the exam document class (https://ctan.org/pkg/exam).
 
 ## Bonus questions
 
-QTI doesn't support bonus questions, a question that starts with `bonus X points` will be treated as a bonus question worth X points.
+QTI doesn't support bonus questions, a question that starts with `(bonus X points)` or `bonus (X points)` will be treated as a bonus question worth X points.
 
 ## Flow to get a LaTeX exam file from a markdown text file
 

@@ -170,7 +170,7 @@ def guess_type(meta, item):
     # fallback
     return "unknown"
 
-def write_exam_header(f, title, description, mainfont):
+def write_exam_header(f, title, description, mainfont, version=""):
     f.write(r"""\documentclass[10pt,addpoints%s]{exam}
 \usepackage{graphicx}
 \usepackage{amsmath,amssymb}
@@ -188,14 +188,14 @@ def write_exam_header(f, title, description, mainfont):
 \begin{center}
   Name:\ \rule{1.5in}{0.4pt}\hfill ID:\ \rule{1.5in}{0.4pt}
   
-  {\Large %s}\\[4pt]
+  {\Large %s%s}\\[4pt]
 \end{center}
 \vspace{0.5cm}
 
 %s
 
 \begin{questions}
-""" % (",answers" if make_answer_key else "", mainfont, escape_tex(title), description))
+""" % (",answers" if make_answer_key else "", mainfont, escape_tex(title), version, description))
     f.write("\n")
 
 def write_exam_footer(f):
@@ -274,7 +274,7 @@ def render_question_latex(qtype, stem_html, item, points):
             lines.append("\\vspace{\\baselineskip}\n")
             lines.append("\\fillin[\\hspace{1.5in}]\n")
 
-    elif qtype in ("essay_question"):
+    elif qtype in ["essay_question"]:
         if correct:
             lines.append("\\begin{solution}\n")
             lines.append(" / ".join(html_to_latex(c) for c in correct))
@@ -291,7 +291,7 @@ def render_question_latex(qtype, stem_html, item, points):
         if not make_answer_key:
             lines.append("\\vspace{" + str(essay_vspace_lines) + "\\baselineskip}\n")
 
-    elif qtype in ("text_only_question"):
+    elif qtype in ["text_only_question"]:
         lines.append("\\vspace{\\baselineskip}\n")
 
     else:
@@ -327,25 +327,27 @@ def get_qti_metadata_field(question, param):
 
 
 @click.command()
-@click.argument("input", type=click.Path(readable=True))
+@click.argument("input-file", type=click.Path(readable=True))
 @click.option("-o", "--output", type=click.Path(dir_okay=False, writable=True), help="Output LaTeX file")
 @click.option("--essay-vspace", type=int, default=7, help="Number of lines for essay questions", show_default=True)
 @click.option("--mainfont", default="TeX Gyre Pagella", help="Main font for XeLaTeX/LuaLaTeX", show_default=True)
 @click.option("--answer-key", is_flag=True, help="Generate an answer key")
-def main(input, output, essay_vspace, mainfont, answer_key):
+@click.option("--choose-item", default=0, type=int, show_default=True,
+              help="Select a specific item from a group instead of random. 0 means select at random.")
+def main(input_file, output, essay_vspace, mainfont, answer_key, choose_item):
     """Convert QTI (Canvas) to LaTeX exam."""
     global essay_vspace_lines
     global make_answer_key
     essay_vspace_lines = essay_vspace
     tmp_dir = None
-    if input.lower().endswith(".zip"):
-        tmp_dir = extract_zip_to_tmp(Path(input))
+    if input_file.lower().endswith(".zip"):
+        tmp_dir = extract_zip_to_tmp(Path(input_file))
         in_dir = tmp_dir
     else:
-        in_dir = Path(input)
+        in_dir = Path(input_file)
 
     if not output:
-        output = Path(input).stem + ".tex"
+        output = Path(input_file).stem + (f'-{choose_item}' if choose_item else '') + ".tex"
 
     if answer_key:
         output_path = Path(output)
@@ -389,7 +391,8 @@ def main(input, output, essay_vspace, mainfont, answer_key):
 
     # parse and write latex
     with open(output, "w", encoding="utf-8") as f:
-        write_exam_header(f, title, description, mainfont)
+        version = "$_{" + chr(ord('a') + (choose_item*17)%25) + "}$" if choose_item else ""
+        write_exam_header(f, title, description, mainfont, version)
 
         for xf in sorted(xml_files):
             try:
@@ -411,7 +414,11 @@ def main(input, output, essay_vspace, mainfont, answer_key):
                     if make_answer_key:
                         count = len(items)
                     else:
-                        random.shuffle(items)
+                        if choose_item == 0:
+                            random.shuffle(items)
+                        else:
+                            item_index = (choose_item - 1) % len(items)
+                            items = items[item_index:] + items[:item_index]
                         count = selection_count
                     for i in range(count):
                         if i >= selection_count:
