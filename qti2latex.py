@@ -177,6 +177,8 @@ def write_exam_header(f, title, description, mainfont, version=""):
 \usepackage{enumitem}
 \usepackage{fontspec}
 \usepackage{longtable}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
 \usepackage{booktabs}
 \usepackage{adjustbox}
 \usepackage[margin=1in]{geometry}
@@ -184,6 +186,7 @@ def write_exam_header(f, title, description, mainfont, version=""):
 \providecommand{\tightlist}{%%
     \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
 \date{}
+\fancyhead[CO]{Name:\ \rule{1.5in}{0.4pt}\hfill ID:\ \rule{1.5in}{0.4pt}}
 \begin{document}
 \begin{center}
   Name:\ \rule{1.5in}{0.4pt}\hfill ID:\ \rule{1.5in}{0.4pt}
