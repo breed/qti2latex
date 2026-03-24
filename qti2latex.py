@@ -15,6 +15,8 @@ make_answer_key = False
 
 # --- Minimal HTML -> LaTeX converter (safe, simple) ---
 def html_to_latex(s: str) -> str:
+    # Wrap multiline <code> blocks in <pre> so pandoc renders them as verbatim
+    s = re.sub(r'<code>([^<]*\n[^<]*)</code>', r'<pre><code>\1</code></pre>', s)
     # use pandoc to convert HTML to LaTeX
     return pypandoc.convert_text(s, 'latex', format='html')
 
@@ -188,6 +190,7 @@ def write_exam_header(f, title, description, mainfont, version=""):
 \date{}
 \fancyhead[CO]{Name:\ \rule{1.5in}{0.4pt}\hfill ID:\ \rule{1.5in}{0.4pt}}
 \begin{document}
+\thispagestyle{plain}
 \begin{center}
   Name:\ \rule{1.5in}{0.4pt}\hfill ID:\ \rule{1.5in}{0.4pt}
   
@@ -206,6 +209,8 @@ def write_exam_footer(f):
 
 def render_question_latex(qtype, stem_html, item, points):
     stem = html_to_latex(stem_html)
+    # Replace bold-italic underscores (text2qti fill-in-the-blank markers) with \fillin
+    stem = re.sub(r"\\textbf\{\\emph\{(\\_)+\}\}", r"\\fillin[\\hspace{1.5in}]", stem)
     bonus_points = None
     if points == 0:
         m = re.search(r"bonus \((\d+) points?\)", stem, re.I)
@@ -273,7 +278,7 @@ def render_question_latex(qtype, stem_html, item, points):
             lines.append("\\begin{solution}\n")
             lines.append(" / ".join(html_to_latex(c) for c in correct))
             lines.append("\n\\end{solution}\n")
-        if not make_answer_key:
+        if not make_answer_key and "\\fillin" not in stem:
             lines.append("\\vspace{\\baselineskip}\n")
             lines.append("\\fillin[\\hspace{1.5in}]\n")
 
@@ -426,7 +431,7 @@ def main(input_file, output, essay_vspace, mainfont, answer_key, choose_item):
                     for i in range(count):
                         if i >= selection_count:
                             f.write("\\addtocounter{question}{-1}\n")
-                        write_question(f, items.pop(), points)
+                        write_question(f, items.pop(0), points)
 
                 else:
                     print(f"what is {question}")
