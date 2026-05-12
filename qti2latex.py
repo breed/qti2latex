@@ -179,8 +179,6 @@ def write_exam_header(f, title, description, mainfont, version=""):
 \usepackage{enumitem}
 \usepackage{fontspec}
 \usepackage{longtable}
-\usepackage{fancyhdr}
-\pagestyle{fancy}
 \usepackage{booktabs}
 \usepackage{adjustbox}
 \usepackage[margin=1in]{geometry}
@@ -188,7 +186,9 @@ def write_exam_header(f, title, description, mainfont, version=""):
 \providecommand{\tightlist}{%%
     \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
 \date{}
-\fancyhead[CO]{Name:\ \rule{1.5in}{0.4pt}\hfill ID:\ \rule{1.5in}{0.4pt}}
+\pagestyle{headandfoot}
+\runningheader{}{Name:\ \rule{1.5in}{0.4pt}\hfill ID:\ \rule{1.5in}{0.4pt}}{}
+\runningheadrule
 \begin{document}
 \thispagestyle{plain}
 \begin{center}
@@ -221,13 +221,14 @@ def render_question_latex(qtype, stem_html, item, points):
             stem = stem[:m.start()] + stem[m.end():]
 
     if bonus_points:
-        lines = [f"\\bonusquestion[{bonus_points}] {stem}\n"]
+        lines = ["\\filbreak\n", f"\\bonusquestion[{bonus_points}] {stem}\n"]
     elif qtype == "text_only_question":
-        lines = ["\\begin{EnvFullwidth}\n\\fbox{\\fbox{\\begin{minipage}{\\dimexpr\\textwidth-2\\fboxsep-2\\fboxrule}\n" +
+        lines = ["\\filbreak\n",
+                 "\\begin{EnvFullwidth}\n\\fbox{\\fbox{\\begin{minipage}{\\dimexpr\\textwidth-2\\fboxsep-2\\fboxrule}\n" +
                  stem +
                  "\\end{minipage}\n}}\n\\end{EnvFullwidth}\n"]
     else:
-        lines = [f"\\question[{points}] {stem}\n"]
+        lines = ["\\filbreak\n", f"\\question[{points}] {stem}\n"]
 
     correct = get_correct_idents(item)
 
